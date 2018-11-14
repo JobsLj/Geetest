@@ -9,9 +9,11 @@
     var __imgx = 0, //图片宽度
         __imgy = 0, //图片高度
         __spec = "",//图片尺寸
-        __executename,//校验通过后执行的函数名
+        __successCallBack,//校验通过后执行的回调函数
         __codediv;//验证码区域的div
-    $.fn.slide = function (imgspec, exename) {
+    $.fn.slide = function (options) {
+        var imgspec = options.imgspec;
+        __successCallBack = options.successCallBack;
         //校验参数
         if (typeof imgspec === 'undefined') {
             imgspec = "300*300";
@@ -19,21 +21,16 @@
         else if (typeof imgspec !== "string") {
             imgspec = "300*300";
         }
-        if (typeof exename === 'undefined') {
-            exename = "";
-        }
-        else if (typeof exename !== "string") {
-            exename = "";
-        }
         var div = this;
         __codediv = div.attr("id");
         __spec = imgspec;
-        __executename = exename;
         if (__codediv === undefined) {
             throw div.selector + ' does not exist';
         }
         __init();
     };
+    //公开刷新函数
+    $.fn.refresh = __init;
     //载入
     function __init() {
         if (__spec === "")
@@ -44,10 +41,10 @@
         $("#" + __codediv).css("width", __imgx);
         $("#" + __codediv).css("height", parseInt(__imgy) + 34);
         CreadeCodeDiv();
-        $('#drag').drag(__executename, __imgx, __imgy, __codediv);
+        $('#drag').drag(__successCallBack, __imgx, __imgy, __codediv);
         $.ajax({ //获取验证码
             type: "POST",
-            url: "./VerificationCode.ashx?action=getcode",
+            url: "src/VerificationCode.ashx?action=getcode",
             dataType: "JSON",
             async: true,
             data: { spec: __spec },
@@ -124,23 +121,22 @@
 * 滑块验证码校验
 */
 (function ($) {
-    $.fn.drag = function (executename, imgx, imgy, __codediv) {
+    $.fn.drag = function (__successCallBack, imgx, imgy, __codediv) {
         var x, drag = this, isMove = false;
         //添加背景，文字，滑块
         var html = '<div class="drag_bg"></div><div class="drag_text" onselectstart="return false;"'
             + 'unselectable="on">\u62d6\u52a8\u56fe\u7247\u9a8c\u8bc1</div>'
-            + '<div class="handler handler_bg"></div><a href="javascript:;" onclick="console.log(\''
-            + '%cVerificationCode Refresh\',\'color:blue\');$(' + __codediv + ').slide(\'' + imgx
-            + '*' + imgy + '\',\'' + executename + '\')"'
+            + '<div class="handler handler_bg"></div><a href="javascript:;"'
             + ' title="\u70b9\u51fb\u5237\u65b0\u9a8c\u8bc1\u7801"'
             + 'style="width:16px;height:16px;"><div class="refesh_bg"></div></a>';
         this.append(html);
+        $(this.selector+" a").click(function () { console.log('%cVerificationCode Refresh', 'color:blue'); $('#' + __codediv).refresh(); });
         $("#drag .drag_text").css("width", imgx);
         $(".refesh_bg").css("left", imgx - 25);
         var handler = drag.find('.handler'),
          drag_bg = drag.find('.drag_bg'),
          text = drag.find('.drag_text'),
-         maxWidth = imgx - 40, // drag.width() - handler.width();  //能滑动的最大间距
+         maxWidth = imgx - 36, // drag.width() - handler.width();  //能滑动的最大间距
          t1 = new Date(), //开始滑动时间
          t2 = new Date(); //结束滑动时间
 
@@ -221,7 +217,7 @@
             t2 = new Date();
             $.ajax({ //校验
                 type: "POST",
-                url: "./VerificationCode.ashx?action=check",
+                url: "src/VerificationCode.ashx?action=check",
                 dataType: "JSON",
                 async: true,
                 data:
@@ -245,15 +241,17 @@
                         $xy_img.css("border", "1px solid rgb(255,255,255)");
                         $("#drag a").remove();
                         console.log("%cVerificationCode Verified", "color:green");
+                        if (__successCallBack !== undefined)
+                            __successCallBack();
                         dragOk();
                     } else {
-                        $(".refesh_bg").show();
-                        $xy_img.css({ 'left': 0 });
-                        handler.css({ 'left': 0 });
-                        drag_bg.css({ 'width': 0 });
+                        $(".refesh_bg").show(300);
+                        $xy_img.animate({ 'left': 0 }, 300);
+                        handler.animate({ 'left': 0 }, 300);
+                        drag_bg.animate({ 'width': 0 }, 300);
                         if (result['msg'] > 4) {
                             //超过最大错误次数限制 刷新验证码
-                            $("#" + __codediv).slide(imgx + "*" + imgy, executename);
+                            $("#" + __codediv).refresh();
                             console.log("%cVerificationCode Refresh", "color:blue");
                         }
                         else {
@@ -279,8 +277,6 @@
             $(document).unbind('mousemove');
             $(document).unbind('mouseup');
             $(".refesh_bg").hide();
-            if (executename !== '')
-                window[executename]();
         }
     };
 })(jQuery);
